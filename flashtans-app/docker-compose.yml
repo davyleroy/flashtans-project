@@ -21,6 +21,11 @@ services:
 
   mysql:
     image: mysql:8.0
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == swarm-db
     volumes:
       - mysql_data:/var/lib/mysql
     environment:

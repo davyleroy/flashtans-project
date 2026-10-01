@@ -27,7 +27,7 @@ const initDatabase = async () => {
         name VARCHAR(255) NOT NULL,
         price DECIMAL(10, 2) NOT NULL,
         description TEXT,
-        image VARCHAR(255) DEFAULT '/images/placeholder.jpg',
+        image VARCHAR(255) DEFAULT '/images/placeholder.svg',
         stock INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
