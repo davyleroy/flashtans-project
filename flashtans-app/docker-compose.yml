@@ -1,0 +1,41 @@
+# docker-compose.yml
+services:
+  app:
+    # Use the image you pushed to your registry
+    image: ${APP_IMAGE:-flashtans-app:local}
+    build:
+      context: ./flashtans-app
+    ports:
+      # ports
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${DB_USER:-flashtans}
+      DB_PASSWORD: ${DB_PASSWORD:-flashtans_local}
+      DB_NAME: ${DB_NAME:-flash_tans_db}
+      DB_PORT: "3306"
+      PORT: "3000"
+    depends_on:
+      mysql:
+        condition: service_healthy # Wait for the DB to be ready
+
+  mysql:
+    image: mysql:8.0
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_local}
+      MYSQL_DATABASE: ${DB_NAME:-flash_tans_db}
+      MYSQL_USER: ${DB_USER:-flashtans}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-flashtans_local}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" -D "$$MYSQL_DATABASE" -e 'SELECT 1'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mysql_data:
