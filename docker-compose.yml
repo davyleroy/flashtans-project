@@ -2,12 +2,14 @@
 services:
   app:
     # Use the image you pushed to your registry
-    image: ${APP_IMAGE:-flashtans-app:local}
+    image:image: sifen23/kane-flashtans-app:latest
     build:
       context: ./flashtans-app
     ports:
-      # ports
+      # In Swarm mode this is published through the routing mesh.
       - "${APP_PORT:-3000}:3000"
+    networks:
+      - flashtans-network
     environment:
       DB_HOST: mysql
       DB_USER: ${DB_USER:-flashtans}
@@ -15,17 +17,30 @@ services:
       DB_NAME: ${DB_NAME:-flash_tans_db}
       DB_PORT: "3306"
       PORT: "3000"
-    depends_on:
-      mysql:
-        condition: service_healthy # Wait for the DB to be ready
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.hostname != swarm-db
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        order: start-first
+      rollback_config:
+        parallelism: 1
 
   mysql:
     image: mysql:8.0
+    networks:
+      - flashtans-network
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.hostname == swarm-db
+      restart_policy:
+        condition: on-failure
     volumes:
       - mysql_data:/var/lib/mysql
     environment:
@@ -44,3 +59,8 @@ services:
 
 volumes:
   mysql_data:
+
+networks:
+  flashtans-network:
+    driver: overlay
+
