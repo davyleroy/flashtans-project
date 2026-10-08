@@ -1,0 +1,64 @@
+services:
+
+  app:
+    image: htugume/kane-flashtans-app:latest
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      DB_HOST: mysql
+      DB_USER: flashtans
+      DB_PASSWORD: flashtans_local
+      DB_NAME: flash_tans_db
+      DB_PORT: "3306"
+      PORT: "3000"
+
+    networks:
+      - flashtans-network
+
+    deploy:
+      replicas: 3
+
+      placement:
+        max_replicas_per_node: 1
+
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+  mysql:
+    image: mysql:8.0
+
+    environment:
+      MYSQL_ROOT_PASSWORD: root_local
+      MYSQL_DATABASE: flash_tans_db
+      MYSQL_USER: flashtans
+      MYSQL_PASSWORD: flashtans_local
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    networks:
+      - flashtans-network
+
+    deploy:
+      replicas: 1
+
+      placement:
+        constraints:
+          - node.hostname == swarm-db
+
+      restart_policy:
+        condition: on-failure
+
+networks:
+  flashtans-network:
+    driver: overlay
+
+volumes:
+  mysql_data:

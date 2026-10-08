@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: flashtans
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: mysql-0
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306

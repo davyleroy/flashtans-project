@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: flashtans
+spec:
+  serviceName: mysql-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+    metadata:
+      labels:
+        app: mysql
+
+    spec:
+      initContainers:
+        - name: init-mysql-config
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              ordinal="${HOSTNAME##*-}"
+              server_id=$((ordinal + 1))
+
+              cp /config/common.cnf /generated/common.cnf
+
+              cat > /generated/server.cnf <<EOC
+              [mysqld]
+              server_id=${server_id}
+              report_host=${HOSTNAME}.mysql-headless.flashtans.svc.cluster.local
+              loose-group_replication_local_address="${HOSTNAME}.mysql-headless.flashtans.svc.cluster.local:33061"
+              EOC
+
+              echo "Generated config for ${HOSTNAME}:"
+              cat /generated/server.cnf
+
+          volumeMounts:
+            - name: mysql-config-source
+              mountPath: /config
+
+            - name: mysql-generated-config
+              mountPath: /generated
+
+      containers:
+        - name: mysql
+          image: mysql:8.0
+
+          ports:
+            - name: mysql
+              containerPort: 3306
+
+            - name: grp-repl
+              containerPort: 33061
+
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DATABASE
+
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_USER
+
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+
+            - name: mysql-generated-config
+              mountPath: /etc/mysql/conf.d
+
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+      volumes:
+        - name: mysql-config-source
+          configMap:
+            name: mysql-config
+
+        - name: mysql-generated-config
+          emptyDir: {}
+
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
