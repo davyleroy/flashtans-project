@@ -1,3 +1,6 @@
+# docker-compose-swarm.yml — Docker Swarm stack on Azure (Part 4)
+# Create the secrets on the manager first, then deploy (see README):
+#   docker stack deploy -c docker-compose-swarm.yml group-kane-flashtans
 services:
 
   app:
@@ -8,11 +11,14 @@ services:
 
     environment:
       DB_HOST: mysql
-      DB_USER: flashtans
-      DB_PASSWORD: flashtans_local
-      DB_NAME: flash_tans_db
+      DB_USER: ${DB_USER:-flashtans}
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_NAME: ${DB_NAME:-flash_tans_db}
       DB_PORT: "3306"
       PORT: "3000"
+
+    secrets:
+      - db_password
 
     networks:
       - flashtans-network
@@ -34,12 +40,6 @@ services:
   mysql:
     image: mysql:8.0
 
-    environment:
-      MYSQL_ROOT_PASSWORD: root_local
-      MYSQL_DATABASE: flash_tans_db
-      MYSQL_USER: flashtans
-      MYSQL_PASSWORD: flashtans_local
-
     volumes:
       - mysql_data:/var/lib/mysql
 
@@ -56,9 +56,32 @@ services:
       restart_policy:
         condition: on-failure
 
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MYSQL_DATABASE: ${DB_NAME:-flash_tans_db}
+      MYSQL_USER: ${DB_USER:-flashtans}
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_root_password
+      - db_password
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - MYSQL_PWD="$$(cat /run/secrets/db_password)" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" -D "$$MYSQL_DATABASE" -e 'SELECT 1'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mysql_data:
+
 networks:
   flashtans-network:
     driver: overlay
 
-volumes:
-  mysql_data:
+secrets:
+  db_root_password:
+    external: true
+  db_password:
+    external: true

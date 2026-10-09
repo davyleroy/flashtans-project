@@ -15,10 +15,14 @@ COPY . .
 
 # --- Production Stage ---
 FROM node:22-alpine
+ENV NODE_ENV=production
 WORKDIR /app
 
 # Copy built artifacts from the 'builder' stage
 COPY --from=builder /app /app
+
+# Run as the unprivileged user that ships with the node image
+USER node
 
 # Expose port 3000
 EXPOSE 3000

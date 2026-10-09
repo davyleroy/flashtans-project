@@ -4,7 +4,8 @@ metadata:
   name: flashtans-app
   namespace: flashtans
 spec:
-  type: NodePort
+  # Public IP on AKS; localhost on Docker Desktop
+  type: LoadBalancer
   selector:
     app: flashtans-app
   ports:

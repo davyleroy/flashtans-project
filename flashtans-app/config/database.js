@@ -1,10 +1,17 @@
+const fs = require('fs');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
+
+// Read NAME from the file in NAME_FILE (Docker/Swarm secrets), else from NAME
+const readSecret = (name) => {
+  const file = process.env[`${name}_FILE`];
+  return file ? fs.readFileSync(file, 'utf8').trim() : process.env[name];
+};
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  password: readSecret('DB_PASSWORD') || '',
   database: process.env.DB_NAME || 'flash_tans_db',
   port: process.env.DB_PORT || 3306,
   waitForConnections: true,
@@ -15,11 +22,15 @@ const dbConfig = {
 // Create connection pool
 const pool = mysql.createPool(dbConfig);
 
-// Initialize database and tables
+const RETRY_DELAY_MS = 5000;
+
+// Initialize database and tables. Retries until MySQL is reachable, because
+// Swarm and Kubernetes ignore depends_on and may start the app first.
 const initDatabase = async () => {
+  let connection;
   try {
-    const connection = await pool.getConnection();
-    
+    connection = await pool.getConnection();
+
     // Create products table
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS products (
@@ -107,10 +118,12 @@ const initDatabase = async () => {
       }
     }
 
-    connection.release();
     console.log('Database initialized successfully');
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error(`Database initialization error (retrying in ${RETRY_DELAY_MS / 1000}s):`, error.message);
+    setTimeout(initDatabase, RETRY_DELAY_MS);
+  } finally {
+    if (connection) connection.release();
   }
 };
 
