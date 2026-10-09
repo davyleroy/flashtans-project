@@ -1,0 +1,53 @@
+# docker-compose.yml — local single-node stack, run from this folder: docker compose up -d
+# Passwords are Compose secrets read from ../secrets/*.txt (git-ignored), see README.
+services:
+  app:
+    # Use the image you pushed to your registry
+    image: flashtans-app:local
+    build:
+      context: .
+    ports:
+      # ports
+      - "3000:3000"
+    environment:
+      DB_HOST: mysql
+      DB_USER: flashtans
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_NAME: flash_tans_db
+      DB_PORT: "3306"
+      PORT: "3000"
+    secrets:
+      - db_password
+    depends_on:
+      mysql:
+        condition: service_healthy # Wait for the DB to be ready
+
+  mysql:
+    image: mysql:8.0
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MYSQL_DATABASE: flash_tans_db
+      MYSQL_USER: flashtans
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_root_password
+      - db_password
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - MYSQL_PWD="$$(cat /run/secrets/db_password)" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" -D "$$MYSQL_DATABASE" -e 'SELECT 1'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mysql_data:
+
+secrets:
+  db_root_password:
+    file: ../secrets/db_root_password.txt
+  db_password:
+    file: ../secrets/db_password.txt

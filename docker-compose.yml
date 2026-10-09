@@ -1,14 +1,15 @@
-# docker-compose.yml — local single-node stack (Part 3)
-# Passwords are Compose secrets read from ./secrets/*.txt (git-ignored), see README.
+# docker-compose.yml — Swarm stack: docker stack deploy -c docker-compose.yml group-kane-flashtans
 services:
   app:
     # Use the image you pushed to your registry
-    image: ${APP_IMAGE:-flashtans-app:local}
+    image: ${APP_IMAGE:-sifen23/kane-flashtans-app:latest}
     build:
       context: ./flashtans-app
     ports:
-      # ports
-      - "${APP_PORT:-3000}:3000"
+      # Published on every node by the routing mesh; swarm-lb forwards port 80 here.
+      - "80:3000"
+    networks:
+      - flashtans-network
     environment:
       DB_HOST: mysql
       DB_USER: ${DB_USER:-flashtans}
@@ -18,12 +19,30 @@ services:
       PORT: "3000"
     secrets:
       - db_password
-    depends_on:
-      mysql:
-        condition: service_healthy # Wait for the DB to be ready
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.hostname != swarm-db
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        order: start-first
+      rollback_config:
+        parallelism: 1
 
   mysql:
     image: mysql:8.0
+    networks:
+      - flashtans-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == swarm-db
+      restart_policy:
+        condition: on-failure
     volumes:
       - mysql_data:/var/lib/mysql
     environment:
@@ -46,8 +65,12 @@ services:
 volumes:
   mysql_data:
 
+networks:
+  flashtans-network:
+    driver: overlay
+
 secrets:
   db_root_password:
-    file: ./secrets/db_root_password.txt
+    external: true
   db_password:
-    file: ./secrets/db_password.txt
+    external: true

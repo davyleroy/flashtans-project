@@ -18,6 +18,9 @@ FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
+# The HEALTHCHECK below needs curl, which Alpine does not include
+RUN apk add --no-cache curl
+
 # Copy built artifacts from the 'builder' stage
 COPY --from=builder /app /app
 
@@ -28,7 +31,8 @@ USER node
 EXPOSE 3000
 
 # Add a health check to let the orchestrator know if the app is healthy
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD node -e "require('http').get('http://127.0.0.1:' + (process.env.PORT || 3000) + '/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl --fail http://localhost:3000/health || exit 1
 
 # Define the command to run the application
 CMD ["node", "server.js"]

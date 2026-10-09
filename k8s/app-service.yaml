@@ -4,7 +4,8 @@ metadata:
   name: flashtans-app
   namespace: flashtans
 spec:
-  # Public IP on AKS; localhost on Docker Desktop
+  # Public IP on AKS. Minikube has no cloud load balancer: use NodePort there
+  # (or run `minikube tunnel`).
   type: LoadBalancer
   selector:
     app: flashtans-app
